@@ -1,0 +1,422 @@
+;;;;
+;;;;
+;;;;   Clojure feels like a general-purpose language beamed back
+;;;;     from the near future.
+;;;;   -- Stu Halloway
+;;;;
+;;;;   Name:               ch04.clj
+;;;;
+;;;;   Started:            Mon Sep  2 02:01:17 2019
+;;;;   Modifications:
+;;;;
+;;;;   Purpose:
+;;;;
+;;;;
+;;;;
+;;;;   Calling Sequence:
+;;;;
+;;;;
+;;;;   Inputs:
+;;;;
+;;;;   Outputs:
+;;;;
+;;;;   Example:
+;;;;
+;;;;   Notes:
+;;;;
+;;;;
+
+(ns ch04
+  (:use clojure.test
+        clojure.math.numeric-tower
+        [clojure.pprint :only (cl-format)]))
+
+;;;
+;;;    4.1
+;;;    
+(defn make-even [n]
+  (if (odd? n)
+    (inc n)
+    n))
+
+(deftest test-make-even
+  (is (== (make-even 0) 0))
+  (is (== (make-even 1) 2))
+  (is (== (make-even 2) 2))
+  (is (== (make-even -1) 0))
+  (is (== (make-even -2) -2)))
+
+;;;
+;;;    4.2
+;;;    
+;; (defn further [x]
+;;   (if (pos? x)
+;;     (inc x)
+;;     (dec x)))
+
+(defn further [x]
+  (if (pos? x)
+    (inc x)
+    (if (neg? x)
+      (dec x)
+      x)))
+
+(defn further [x]
+  (cond (pos? x) (inc x)
+        (neg? x) (dec x)
+        :else x))
+
+(defn further [x]
+  (if (zero? x)
+    x
+    (+ x (/ (abs x) x)))) ; Poor man's SIGNUM
+
+(deftest test-further
+  (is (== (further 1) 2))
+  (is (== (further 0.5) 1.5))
+  (is (== (further 3/2) 5/2))
+  (is (== (further -1) -2))
+  (is (== (further -0.5) -1.5))
+  (is (== (further -3/2) -5/2))
+  (is (== (further 0) 0))
+  (is (== (further 0.0) 0.0)))
+
+;;;
+;;;    4.3
+;;;    
+(defn not [p]
+  (if p false true))
+
+(deftest test-not
+  (is (= (not (== 2 3)) (clojure.core/not (== 2 3))))
+  (is (= (not (< 2 3)) (clojure.core/not (< 2 3)))) )
+
+;;;
+;;;    4.4
+;;;    
+(defn ordered [a b]
+  (if (< b a)
+    (list b a)
+    (list a b)))
+
+(deftest test-ordered
+  (is (= (ordered 2 3) '(2 3)))
+  (is (= (ordered 3 2) '(2 3)))
+  (is (= (ordered 2 2) '(2 2))))
+
+;;;
+;;;    4.8
+;;;    
+(defn emphasize [s]
+  (cond (= (first s) 'good) (cons 'great (rest s))
+        (= (first s) 'bad) (cons 'awful (rest s))
+        :else (cons 'very s)))
+
+(deftest test-emphasize
+  (is (= (emphasize '(good day)) '(great day)))
+  (is (= (emphasize '(bad day)) '(awful day)))
+  (is (= (emphasize '(long day)) '(very long day))))
+
+;;;
+;;;    4.9
+;;;    
+(defn make-odd [n]
+  (cond (not (odd? n)) (inc n)
+        :else n))
+
+(defn make-odd [n]
+  (+ n (if (odd? n) 0 1)))
+
+(deftest test-make-odd
+  (is (odd? (make-odd -2)))
+  (is (odd? (make-odd -1)))
+  (is (odd? (make-odd 0)))
+  (is (odd? (make-odd 1)))
+  (is (odd? (make-odd 2))))
+
+;;;
+;;;    4.10
+;;;
+(defn constrain [x min max]
+  (cond (< x min) min
+        (> x max) max
+        :else x))
+
+(deftest test-constrain
+  (is (== (constrain 3 -50 50) 3))
+  (is (== (constrain 92 -50 50) 50))
+  (is (== (constrain -1 0 10) 0)))
+
+;;;
+;;;    4.11
+;;;
+(defn first-zero [ns]
+  (cond (zero? (first ns)) 'first
+        (zero? (second ns)) 'second
+        (zero? (nth ns 2)) 'third ; D'oh!
+        :else 'none))
+
+(defn first-zero [[a b c]]
+  (cond (zero? a) 'first
+        (zero? b) 'second
+        (zero? c) 'third
+        :else 'none))
+
+(defn first-zero [ns]
+  (letfn [(check-it [l result]
+            (cond (and (empty? l) (empty? result)) 'none
+                   (or (empty? l) (empty? result)) (throw (IllegalArgumentException. (cl-format nil "Bad input: ~A" ns)))
+                   (zero? (first l)) (first result)
+                   :else (recur (rest l) (rest result))))]
+    (check-it ns '(first second third))))
+
+(deftest test-first-zero
+  (is (= (first-zero '(0 3 4)) 'first))
+  (is (= (first-zero '(3 0 4)) 'second))
+  (is (= (first-zero '(3 4 0)) 'third))
+  (is (= (first-zero '(1 2 3)) 'none)))
+
+;;;
+;;;    4.12
+;;;    
+(def limit 99)
+(defn cycle [n]
+  (inc (mod n limit)))
+
+;; Dammit!
+;; (every? (fn [x y] (== (inc x) y)) (range 1 99) (map cycle (range 1 99))) ; Only 1 sequence allowed...
+
+(deftest test-cycle
+  (is (every? (fn [[x y]] (== (inc x) y)) (map (fn [x] [x (cycle x)]) (range 1 limit))))
+  (is (== (cycle 1) 2))
+  (is (== (cycle 2) 3))
+  (is (== (cycle limit) 1)))
+
+;;;
+;;;    4.15
+;;;
+;; (defn geq [x y]
+;;   (>= x y))
+
+(defn geq [x y]
+  (or (> x y) (== x y)))
+
+(deftest test-geq
+  (is (geq 8 8))
+  (is (geq 8 2))
+  (is (not (geq 2 8))))
+
+;;;
+;;;    4.16
+;;;
+(defn fancy [x]
+  (cond (and (odd? x) (pos? x)) (* x x)
+        (and (odd? x) (neg? x)) (* 2 x)
+        :else (/ x 2)))
+
+(defn fancy-factor [x]
+  (if (odd? x)
+      (if (pos? x) x 2)
+      1/2))
+
+(defn fancy [x]
+  (* x (fancy-factor x)))
+
+(deftest test-fancy
+  (is (== (fancy 3) 9))
+  (is (== (fancy -7) -14))
+  (is (== (fancy 0) 0))
+  (is (== (fancy 8) 4))
+  (is (== (fancy -4) -2)))
+;   (= (fancy pi) (/ pi 2)))) ; First version of FANCY => error
+
+;;;
+;;;    4.17
+;;;
+(defn categorize [sex age]
+  (cond (or (= sex 'boy) (= sex 'girl)) (= age 'child)
+        (or (= sex 'man) (= sex 'woman)) (= age 'adult)
+        :else false))
+
+(defn categorize [sex age]
+  (cond (#{'boy 'girl} sex) (= age 'child)
+        (#{'man 'woman} sex) (= age 'adult)
+        :else false))
+
+(deftest test-categorize
+  (is (categorize 'boy 'child))
+  (is (categorize 'girl 'child))
+  (is (categorize 'man 'adult))
+  (is (categorize 'woman 'adult))
+  (is (not (categorize 'boy 'adult)))
+  (is (not (categorize 'girl 'adult)))
+  (is (not (categorize 'man 'child)))
+  (is (not (categorize 'woman 'child))))
+
+;;;
+;;;    4.18
+;;;
+(defn play [player1 player2]
+  (cond (= player1 player2) 'tie
+        (or (and (= player1 'rock) (= player2 'paper))
+            (and (= player1 'paper) (= player2 'scissors))
+            (and (= player1 'scissors) (= player2 'rock)))
+        'player2-wins
+        :else 'player1-wins))
+
+(defn play [player1 player2]
+  (case player1
+    rock (case player2
+           rock 'tie
+           paper 'player2-wins
+           scissors 'player1-wins)
+    paper (case player2
+            rock 'player1-wins
+            paper 'tie
+            scissors 'player2-wins)
+    scissors (case player2
+               rock 'player2-wins
+               paper 'player1-wins
+               scissors 'tie)))
+
+(def jan-ken-pon {:rock '(rock scissors paper)
+                  :paper '(paper rock scissors)
+                  :scissors '(scissors paper rock)})
+
+(defn play [player1 player2]
+  (let [[tie win lose] (jan-ken-pon (keyword player1))]
+    (cond (= player2 tie) 'tie
+          (= player2 win) 'player1-wins
+          (= player2 lose) 'player2-wins)))
+
+(deftest test-play
+  (is (= (play 'rock 'rock) 'tie))
+  (is (= (play 'rock 'paper) 'player2-wins))
+  (is (= (play 'rock 'scissors) 'player1-wins))
+  (is (= (play 'paper 'rock) 'player1-wins))
+  (is (= (play 'paper 'paper) 'tie))
+  (is (= (play 'paper 'scissors) 'player2-wins))
+  (is (= (play 'scissors 'rock) 'player2-wins))
+  (is (= (play 'scissors 'paper) 'player1-wins))
+  (is (= (play 'scissors 'scissors) 'tie)))
+
+
+;;;
+;;;    4.20
+;;;
+(defn compare [x y]
+  (cond (== x y) 'numbers-are-the-same
+        (< x y) 'first-is-smaller
+        (> x y) 'first-is-bigger))
+
+(defn compare [x y]
+  (cond (== x y) 'numbers-are-the-same
+        (< x y) 'first-is-smaller
+        :else 'first-is-bigger))
+
+(defn compare [x y]
+  (if (== x y)
+      'numbers-are-the-same
+      (if (< x y)
+          'first-is-smaller
+          'first-is-bigger)))
+
+(defn compare [x y]
+  (or (and (== x y) 'numbers-are-the-same)
+      (and (< x y) 'first-is-smaller)
+      'first-is-bigger))
+
+(deftest test-compare ()
+  (is (= (compare 2 2) 'numbers-are-the-same))
+  (is (= (compare 2.0 2.0) 'numbers-are-the-same))
+  (is (= (compare 2 2.0) 'numbers-are-the-same))
+  (is (= (compare 2 3) 'first-is-smaller))
+  (is (= (compare 2.0 3.0) 'first-is-smaller))
+  (is (= (compare 2 3.0) 'first-is-smaller))
+  (is (= (compare -2 -3) 'first-is-bigger))
+  (is (= (compare -2.0 -3.0) 'first-is-bigger))
+  (is (= (compare -2 -3.0) 'first-is-bigger)))
+
+;;;
+;;;    4.21
+;;;
+(defn gtest [x y]
+  (or (> x y)
+      (zero? x)
+      (zero? y)))
+
+(defn gtest [x y]
+  (if (> x y)
+      true
+      (if (zero? x)
+          true
+          (zero? y))))
+
+(defn gtest [x y]
+  (if (not (> x y))
+      (if (not (zero? x))
+          (zero? y)
+          true)
+      true))
+
+;;    Dumb Clojure semantics...
+(defn gtest [x y]
+  (cond (> x y) true
+        (zero? x) true
+        (zero? y) true
+        :else false))
+
+(deftest test-gtest ()
+  (is (gtest 9 4))
+  (is (gtest 9.0 4.0))
+  (is (gtest 9 4.0))
+  (is (not (gtest 4 9)))
+  (is (gtest 9 0))
+  (is (gtest 0 4))
+  (is (gtest 0.0 0.0)))
+
+;;;
+;;;    4.22
+;;;    
+(defn boiling? [temperature scale]
+  (cond (= scale 'fahrenheit) (> temperature 212)
+        (= scale 'celsius) (> temperature 100)
+        :else (throw (IllegalArgumentException. (cl-format nil "Unknown scale: ~A" scale)))) )
+
+(defn boiling? [temperature scale]
+  (case scale
+    fahrenheit (> temperature 212)
+    celsius (> temperature 100)
+    (throw (IllegalArgumentException. (cl-format nil "Unknown scale: ~A" scale)))) )
+
+(defn boiling? [temperature scale]
+  (if (= scale 'fahrenheit)
+      (> temperature 212)
+      (if (= scale 'celsius)
+          (> temperature 100)
+          (throw (IllegalArgumentException. (cl-format nil "Unknown scale: ~A" scale)))) ))
+
+(let [boiling-points {'fahrenheit (fn [temperature] (> temperature 212))
+                      'celsius (fn [temperature] (> temperature 100))}]
+  (defn boiling? [temperature scale]
+    (let [test (boiling-points scale)]
+      (if (nil? test)
+          (throw (IllegalArgumentException. (cl-format nil "Unknown scale: ~A" scale)))
+          (test temperature)))) )
+
+;;;
+;;;    We lose the error checking here...
+;;;    
+(defn boiling? [temperature scale]
+  (or (and (= scale 'fahrenheit) (> temperature 212))
+      (and (= scale 'celsius) (> temperature 100))))
+
+(deftest test-boiling? ()
+  (is (boiling? 270 'fahrenheit))
+  (is (boiling? 212.1 'fahrenheit))
+  (is (not (boiling? 200 'fahrenheit)))
+  (is (not (boiling? 32.0 'fahrenheit)))
+  (is (boiling? 115 'celsius))
+  (is (boiling? 100.1 'celsius))
+  (is (not (boiling? 99 'celsius)))
+  (is (not (boiling? -40.0 'celsius))))

@@ -1,0 +1,236 @@
+;;;;
+;;;;
+;;;;   Clojure feels like a general-purpose language beamed back
+;;;;     from the near future.
+;;;;   -- Stu Halloway
+;;;;
+;;;;   Name:               unary.clj
+;;;;
+;;;;   Started:            Sat Aug 24 04:13:24 2019
+;;;;   Modifications:
+;;;;
+;;;;   Purpose:
+;;;;
+;;;;
+;;;;
+;;;;   Calling Sequence:
+;;;;
+;;;;
+;;;;   Inputs:
+;;;;
+;;;;   Outputs:
+;;;;
+;;;;   Example:
+;;;;
+;;;;   Notes:
+;;;;
+;;;;
+
+(ns unary
+  (:use clojure.test))
+
+(def ^:const tally 'X)
+
+(defn unary [n]
+  (repeat n tally))
+
+(defn number [unary]
+  (count unary))
+
+(defn zero? [n]
+  (empty? n))
+
+(defn inc [n]
+  (cons tally n))
+
+(defn dec [n]
+  (if (zero? n)
+    :error
+    (rest n)))
+
+(def ^:const zero (unary 0))
+(def ^:const one (inc zero))
+(def ^:const two (inc one))
+
+;;
+;;    Have to redefine dec, so test must come after!!
+;;    
+(deftest test-zero?
+  (is (zero? zero))
+  (is (not (zero? (inc zero))))
+  (is (not (zero? one)))
+  (is (zero? (dec one)))
+  (is (zero? (dec (dec two)))) )
+
+(defn == [m n]
+  (cond (zero? m) (zero? n)
+        (zero? n) false
+        :else (recur (dec m) (dec n))))
+
+(deftest test-==
+  (is (== one one))
+  (is (not (== one two)))
+  (is (== two two))
+  (is (not (== one (inc one))))
+  (is (== two (inc one)))
+  (is (== (inc zero) (dec two))))
+
+(defn < [m n]
+  (cond (zero? n) false
+        (zero? m) true
+        :else (recur (dec m) (dec n))))
+
+(deftest test-<
+  (is (< zero one))
+  (is (< one two))
+  (is (< two (inc two)))
+  (is (not (< zero zero)))
+  (is (not (< one zero)))
+  (is (not (< two one))))
+
+(defn > [m n]
+  (cond (zero? m) false
+        (zero? n) true
+        :else (recur (dec m) (dec n))))
+
+(deftest test->
+  (is (> one zero))
+  (is (> two one))
+  (is (> two (dec two)))
+  (is (not (> zero zero)))
+  (is (not (> one two)))
+  (is (not (> zero one))))
+
+;;;
+;;;    m + n = (m + 1) + (n - 1)
+;;;                   
+(defn + [m n]
+  (if (zero? n)
+    m
+    (recur (inc m) (dec n))))
+
+(deftest test-+
+  (is (== (+ zero zero) zero))
+  (is (== (+ one zero) one))
+  (is (== (+ zero one) one))
+  (is (== (+ one one) two)))
+
+;;;
+;;;    m - n = (m - 1) - (n - 1)
+;;;                             
+(defn - [m n]
+  (cond (zero? n) m
+        (zero? m) :error
+        :else (recur (dec m) (dec n))))
+
+(deftest test--
+  (is (== (- zero zero) zero))
+  (is (== (- one zero) one))
+  (is (== (- one one) zero))
+  (is (== (- two one) one)))
+
+;;;
+;;;    m * n = m * n + m - m = m * (n - 1) + m
+;;;
+(defn * [m n]
+  (if (zero? n)
+    zero
+    (+ m (* m (dec n)))) )
+
+(deftest test-*
+  (is (== (* (unary 2) (unary 3)) (unary 6)))
+  (is (== (+ two two) (* two two)))
+  (is (== (* one (unary 8)) (unary 8)))
+  (is (== (* two zero) zero))
+  (is (== (* zero two) zero)))
+
+(defn *'
+  ([m n] (*' m n zero))
+  ([m n acc] (if (zero? n)
+               acc
+               (recur m (dec n) (+ acc m)))) )
+
+(deftest test-*'
+  (is (== (*' (unary 2) (unary 3)) (unary 6)))
+  (is (== (+ two two) (*' two two)))
+  (is (== (*' one (unary 8)) (unary 8)))
+  (is (== (*' two zero) zero))
+  (is (== (*' zero two) zero)))
+
+;;;
+;;;    m   m - n + n    m - n
+;;;    - = --------- = ------ + 1
+;;;    n       n         n       
+(defn / [m n]
+  (cond (zero? n) :error
+        (< m n) zero
+        :else (inc (/ (- m n) n))))
+
+(deftest test-div
+  (is (== (/ (unary 4) two) two))
+  (is (== (/ (unary 5) two) two))
+  (is (== (/ (unary 6) two) (unary 3)))
+  (is (== (/ (* two two) (* two two)) one))
+  (is (== (/ zero one) zero)))
+
+;; (defn div1
+;;   ([m n] (div1 m n zero))
+;;   ([m n acc] (cond (zero? n) :error
+;;                    (< m n) acc
+;;                    :else (recur (- m n) n (inc acc)))) )
+;;;    Fixed from Oz version.
+(defn div1
+  ([m n] (if (zero? n)
+           :error
+           (div1 m n zero)))
+  ([m n acc] (if (< m n)
+               acc
+               (recur (- m n) n (inc acc)))) )
+
+(deftest test-div1
+  (is (== (div1 (unary 4) two) two))
+  (is (== (div1 (unary 5) two) two))
+  (is (== (div1 (unary 6) two) (unary 3)))
+  (is (== (div1 (* two two) (* two two)) one))
+  (is (== (div1 zero one) zero)))
+
+(defn mod [m n]
+  (cond (zero? n) :error
+        (< m n) m
+        :else (recur (- m n) n)))
+
+(deftest test-mod
+  (is (== (mod (unary 5) two) one))
+  (is (== (mod (unary 6) two) zero))
+  (is (== (mod (unary 3) two) one))
+  (is (== (mod zero two) zero)))
+
+(defn pos? [n]
+  (> n zero))
+
+(deftest test-pos?
+  (is (pos? one))
+  (is (pos? two))
+  (not (pos? zero))
+  (pos? (inc zero))
+  (not (pos? (dec one))))
+
+(defn even? [n]
+  (zero? (mod n two)))
+
+(deftest test-even?
+  (is (even? zero))
+  (is (even? two))
+  (is (even? (+ one one)))
+  (is (not (even? one)))
+  (is (not (even? (+ one two)))) )
+
+(defn odd? [n]
+  (not (even? n)))
+
+(deftest test-odd?
+  (is (odd? one))
+  (is (odd? (- two one)))
+  (is (odd? (+ two one)))
+  (is (not (odd? zero)))
+  (is (not (odd? two))))

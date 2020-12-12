@@ -1,0 +1,33 @@
+;;;;
+;;;;
+;;;;   Clojure feels like a general-purpose language beamed back
+;;;;     from the near future.
+;;;;   -- Stu Halloway
+;;;;
+;;;;   Name:               ch02.clj
+;;;;
+;;;;   Started:            Sat Mar 28 05:46:05 2020
+;;;;   Modifications:
+;;;;
+;;;;   Purpose:
+;;;;
+;;;;
+;;;;
+;;;;   Calling Sequence:
+;;;;
+;;;;
+;;;;   Inputs:
+;;;;
+;;;;   Outputs:
+;;;;
+;;;;   Example:
+;;;;
+;;;;   Notes:
+;;;;
+;;;;
+
+(ns ch02
+  (:use clojure.test
+        [clojure.pprint :only (cl-format)])
+  (:import))
+
