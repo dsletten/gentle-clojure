@@ -117,12 +117,21 @@
         (zero? n) true  ; Anything besides zero is greater than zero.
         :else (recur (dec m) (dec n))))
 
+(defn > [m n]
+  (< n m))
+
 (deftest test->
   (is (> two one))
   (is (> one zero))
   (is (not (> one one)))
   (is (not (> zero two)))
   (is (> (dec two) zero)))
+
+(defn <= [m n]
+  (not (> m n)))
+
+(defn >= [m n]
+  (not (< m n)))
 
 (defn + [m n]
   (if (zero? n)
@@ -187,7 +196,7 @@
 ;;;    n       n         n
 ;;;    
 (defn / [m n]
-  (cond (zero? n) (throw (IllegalArgumentException. (cl-format nil "Cannot divide by zero.")))
+  (cond (zero? n) (throw (IllegalArgumentException. "Cannot divide by zero."))
         (< m n) zero
         :else (inc (/ (- m n) n))))
 
@@ -197,7 +206,7 @@
 	      acc
               (recur (- m n) (inc acc))))]
     (if (zero? n)
-      (throw (IllegalArgumentException. (cl-format nil "Cannot divide by zero.")))
+      (throw (IllegalArgumentException. "Cannot divide by zero."))
       (div m zero))))
 
 (deftest test-div
@@ -208,9 +217,9 @@
   (is (== (/ zero one) zero)))
 
 (defn mod [m n]
-  (if (< m n) ; (zero? n) !!
-    m
-    (recur (- m n) n)))
+  (cond (zero? n) (throw (IllegalArgumentException. "Cannot divide by zero."))
+        (< m n) m
+        :else (recur (- m n) n)))
 
 (deftest test-mod
   (is (== (mod (unary 5) two) one))
