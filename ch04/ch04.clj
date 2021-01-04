@@ -326,8 +326,8 @@
 
 (defn play [player1 player2]
   (cond (clojure.core/not (legal-move? player1)) (if (legal-move? player2)
-                                      :illegal-player1
-                                      :both-illegal)
+                                                   :illegal-player1
+                                                   :both-illegal)
         (clojure.core/not (legal-move? player2)) :illegal-player2
         (= player1 player2) :tie
         (and (= player1 :rock) (= player2 :scissors)) :first-wins
