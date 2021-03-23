@@ -266,23 +266,37 @@
   (is (= (differences :object1 :object6) (differences :object6 :object1))))
 
 (def properties '{size [large small]
-                 color [red green blue]
-                 luster [shiny dull]
-                 material [metal plastic]
-                 shape [cube sphere pyramid four-sided]})
+                  color [red green blue]
+                  luster [shiny dull]
+                  material [metal plastic]
+                  shape [cube sphere pyramid four-sided]})
 
-(defn qualities-map
-  "Extract qualities from properties."
-  ([keys] (qualities-map keys {}))
-  ([keys qualities]
-   (if (empty? keys)
-     qualities
-     (let [[key & more] keys]
-       (recur more (reduce (fn [result [k v]] (assoc result k v)) 
-                           qualities
-                           (map (fn [quality] [quality key]) (properties key)))) ))))
-     
-(def qualities (qualities-map (keys properties)))
+;; (defn qualities-map
+;;   "Extract qualities from properties."
+;;   ([keys] (qualities-map keys {}))
+;;   ([keys qualities]
+;;    (if (empty? keys)
+;;      qualities
+;;      (let [[key & more] keys]
+;;        (recur more (reduce (fn [result [k v]] (assoc result k v)) 
+;;                            qualities
+;;                            (map (fn [quality] [quality key]) (properties key)))) ))))
+
+;; (defn qualities-map
+;;   "Extract qualities from properties."
+;;   ([keys] (qualities-map keys {}))
+;;   ([keys qualities]
+;;    (if (empty? keys)
+;;      qualities
+;;      (let [[key & more] keys]
+;;        (recur more (into qualities (map (fn [quality] [quality key]) (properties key)))) ))))
+
+(defn invert-map
+  "Invert a map {key1 [val1 ... valn] ...} to {val1 key1 ... valn key1 ...}"
+  [in]
+  (reduce (fn [m [key vals]] (into m (map (fn [v] [v key]) (if (coll? vals) vals [vals])))) {} in))
+
+(def qualities (invert-map properties))
 
 (defn quality
   "Determine the quality of `property`"
@@ -298,19 +312,290 @@
   (is (= (quality 'metal) 'material))
   (is (= (quality 'sphere) 'shape)))
 
-;; (defun quality-difference (obj1 obj2)
-;;   (quality (first (differences obj1 obj2))))
+(defn quality-difference
+  "Determine one quality that differs between a pair of objects."
+  [obj1 obj2] (quality (first (differences obj1 obj2))))
 
-;; (defun contrast (obj1 obj2)
-;;   (remove-duplicates (sublis *quality-table* (differences obj1 obj2))))
+(defn contrast
+  "Determine the qualities that differ between a pair of objects."
+  [obj1 obj2]
+  (set (map quality (differences obj1 obj2))))
 
-;; ;;;
-;; ;;;    MAPCAR is in ch7!!
-;; ;;;    
-;; (defun contrast (obj1 obj2)
-;;   (remove-duplicates (mapcar #'quality (differences obj1 obj2))))
+(deftest test-contrast ()
+  (is (= (contrast :object3 :object4) '#{color material}))
+  (is (empty? (contrast :object5 :object5))))
 
-;; (deftest test-contrast ()
-;;   (check
-;;    (set-equal (contrast 'object3 'object4) '(color material))
-;;    (null (contrast 'object5 'object5))))
+;;;
+;;;    6.30
+;;;
+(def books {"Before The Frost" "Henning Mankell"
+            "Daemon" "Daniel Suarez"
+            "Cat's Cradle" "Kurt Vonnegut"
+            "Prince Caspian" "C. S. Lewis"
+            "PAIP" "Peter Norvig"})
+
+;;;
+;;;    6.31
+;;;
+(defn who-wrote
+  "Who is the author of `book`?"
+  [book] (books book))
+
+;;;
+;;;    6.33
+;;;
+(def authors (invert-map books))
+
+(defn wrote-what
+  "Which books did `author` write?"
+  [author] (authors author))
+
+;;;
+;;;    6.34
+;;;
+;; (def atlas [[:pennsylvania :pittsburgh]
+;;             [:new-jersey :newark]
+;;             [:pennsylvania :johnstown]
+;;             [:ohio :columbus]
+;;             [:new-jersey :princeton]
+;;             [:new-jersey :trenton]])
+
+(def atlas {:pennsylvania [:pittsburgh :johnstown]
+            :new-jersey [:newark :princeton :trenton]
+            :ohio [:columbus]})
+
+(defn find-cities
+  "Find all cities in the atlas located in `state`."
+  [state]
+  (atlas state))
+
+(deftest test-find-cities
+  (is (= (find-cities :pennsylvania) [:pittsburgh :johnstown]))
+  (is (= (find-cities :new-jersey) [:newark :princeton :trenton]))
+  (is (empty? (find-cities :pennsyltucky))))
+
+;;;
+;;;    6.35
+;;;    
+(def nerd-states {:sleeping :eating
+                  :eating :waiting-for-a-computer
+                  :waiting-for-a-computer :programming
+                  :programming :debugging
+                  :debugging :sleeping})
+
+(defn nerdus
+  "What is the nerd's next state following `state`?"
+  [state] (nerd-states state))
+
+(deftest test-nerdus
+  (is (= (nerdus :programming) :debugging))
+  (is (= (nerdus :sleeping) :eating))
+  (is (nil? (nerdus :playing-guitar))))
+
+(defn sleepless-nerd
+  "What is the caffeinated nerd's next state following `state`?"
+  [state]
+  (let [next-state (nerdus state)]
+    (case next-state
+      :sleeping (nerdus next-state)
+      next-state)))
+
+(deftest test-sleepless-nerd
+  (is (= (sleepless-nerd :eating) :waiting-for-a-computer))
+  (is (= (sleepless-nerd :debugging) :eating))
+  (is (= (sleepless-nerd :sleeping) :eating))) ; ???
+
+(defn nerd-on-caffeine
+  "What is the over-caffeinated nerd's next state following `state`?"
+  [state] (nerdus (nerdus state)))
+  
+(deftest test-nerd-on-caffeine
+  (is (= (nerd-on-caffeine :sleeping) :waiting-for-a-computer))
+  (is (= (nerd-on-caffeine :eating) :programming))
+  (is (= (nerd-on-caffeine :waiting-for-a-computer) :debugging))
+  (is (= (nerd-on-caffeine :programming) :sleeping))
+  (is (= (nerd-on-caffeine :debugging) :eating)))
+
+(defmacro defchain
+  [var vals & default]
+  (let [chain (mapcat (fn [key val] `(~key '~val)) vals (concat (rest vals) (list (first vals))))]
+    `(case ~var ~@chain ~@default)))
+
+(defn nerdus [state]
+  (defchain state (:sleeping :eating :waiting-for-a-computer :programming :debugging) nil))
+
+;;;
+;;;    6.36
+;;;
+(defn swap-first-last
+  "Swap the first and last elements of a list."
+  [l]
+  (if (empty? l) 
+    l
+    (let [[elt0 & more] l]
+      (if (empty? more)
+        l
+        (concat (list (last l)) (butlast more) (list elt0)))) ))
+
+;; (defn swap-first-last
+;;   "Swap the first and last elements of a list."
+;;   [l]
+;;   (letfn [(swap [l elt0 eltn result]
+;;             (cond (empty? l) (cons eltn (reverse (cons elt0 result)))
+;;                   :else (recur (rest l) elt0 (first l) (cons eltn result))))]
+;;     (cond (empty? l) l
+;;           (empty? (rest l)) l
+;;           :else (swap (nthrest l 2) (first l) (second l) '()))) )
+
+(defn swap-first-last
+  "Swap the first and last elements of a list."
+  [l]
+  (letfn [(swap [l elt0 eltn result]
+            (cond (empty? l) (cons eltn (reverse (cons elt0 result)))
+                  :else (recur (rest l) elt0 (first l) (cons eltn result))))]
+    (if (empty? l) 
+      l
+      (let [[elt0 & more] l]
+        (if (empty? more)
+          l
+          (swap (rest more) elt0 (first more) '()))) )))
+
+(defn swap-first-last
+  "Swap the first and last elements of a list."
+  [l]
+  (letfn [(swap [elt0 reversed]
+            (cons (first reversed) (reverse (cons elt0 (rest reversed)))) )]
+    (if (empty? l) 
+      l
+      (let [[elt0 & more] l]
+        (if (empty? more)
+          l
+          (swap elt0 (reverse more)))) )))
+
+(defn swap-first-last
+  "Swap the first and last elements of a list."
+  [l]
+  (letfn [(swap [elt0 more result]
+            (cond (empty? more) (cons (first result) (reverse (cons elt0 (rest result))))
+                  :else (swap elt0 (rest more) (cons (first more) result))))]
+    (if (empty? l) 
+      l
+      (let [[elt0 & more] l]
+        (if (empty? more)
+          l
+          (swap elt0 more '()))) )))
+
+;; (defn swap-first-last
+;;   "Swap the first and last elements of a list."
+;;   [l]
+;;   (letfn [(swap [l elt0 eltn result]
+;;             (cond (empty? l) (cons eltn (reverse (cons elt0 result)))
+;;                   :else (recur (rest l) elt0 (first l) (cons eltn result))))]
+;;     (cond (empty? l) l
+;;           (empty? (rest l)) l
+;;           :else (swap (nthrest l 2) (first l) (second l) '()))) )
+
+;; (defn swap-first-last
+;;   "Swap the first and last elements of a list."
+;;   [l]
+;;   (letfn [(swap [l elt0 eltn result]
+;;             (cond (empty? l) (cons eltn (reverse (cons elt0 result)))
+;;                   :else (recur (rest l) elt0 (first l) (cons eltn result))))]
+;;     (if (empty? l) 
+;;       l
+;;       (let [[elt0 & more] l]
+;;         (if (empty? more)
+;;           l
+;;           (swap (rest more) elt0 (first more) '()))) )))
+
+(defn swap-first-last
+  "Swap the first and last elements of a list."
+  [l]
+  (letfn [(swap [l a z result]
+            (cond (empty? l) (cons z (reverse (cons a result)))
+                  :else (recur (rest l) a (first l) (cons z result))))]
+    (if (< (count l) 2) ; Inexpensive in Clojure
+      l
+      (swap (nthrest l 2) (first l) (second l) '()))) )
+
+(deftest test-swap-first-last
+  (is (= (swap-first-last '()) '()))
+  (is (= (swap-first-last '(a)) '(a)))
+  (is (= (swap-first-last '(a b)) '(b a)))
+  (is (= (swap-first-last '(you cant buy love)) '(love cant buy you))))
+
+;;;
+;;;    6.37
+;;;
+(defn rotate-left
+  "Rotate the elements of a list to the left. The first becomes the last."
+  [l]
+  (case (count l)
+    (0 1) l
+    (concat (rest l) (list (first l)))) )
+
+(defn rotate-left
+  "Rotate the elements of a list to the left. The first becomes the last."
+  [l]
+  (letfn [(rotate [a l]
+            (cond (empty? l) (list a)
+                  :else (cons (first l) (rotate a (rest l)))) )]
+    (if (< (count l) 2)
+      l
+      (rotate (first l) (rest l)))) )
+
+;;;
+;;;    Tail recursive.
+;;;    
+(defn rotate-left
+  "Rotate the elements of a list to the left. The first becomes the last."
+  [l]
+  (letfn [(rotate [a l result]
+            (cond (empty? l) (reverse (cons a result))
+                  :else (recur a (rest l) (cons (first l) result))))]
+    (if (< (count l) 2)
+      l
+      (rotate (first l) (rest l) '()))) )
+
+(deftest test-rotate-left
+  (is (= (rotate-left '()) '()))
+  (is (= (rotate-left '(a)) '(a)))
+  (is (= (rotate-left '(a b)) '(b a)))
+  (is (= (rotate-left [[:a 1] [:b 2] [:c 3]]) [[:b 2] [:c 3] [:a 1]]))
+  (is (= (rotate-left (rotate-left (rotate-left '(a b c)))) '(a b c)))
+  (is (= (rotate-left '(a b c d e)) '(b c d e a))))
+
+(defn rotate-right
+  "Rotate the elements of a list to the right. The last becomes the first."
+  [l]
+  (case (count l)
+    (0 1) l
+    (concat (list (last l)) (butlast l))))
+
+;; (defn rotate-right
+;;   "Rotate the elements of a list to the right. The last becomes the first."
+;;   [l]
+;;   (letfn [(rotate [z l result]
+;;             (cond (empty? l) (cons z (reverse result))
+;;                   :else (recur (first l) (rest l) (cons z result))))]
+;;     (if (< (count l) 2)
+;;       l
+;;       (rotate (second l) (nthrest l 2) (list (first l)))) ))
+
+(defn rotate-right
+  "Rotate the elements of a list to the right. The last becomes the first."
+  [l]
+  (letfn [(rotate [previous l result]
+            (cond (empty? l) (cons previous (reverse result))
+                  :else (recur (first l) (rest l) (cons previous result))))]
+    (if (< (count l) 2)
+      l
+      (rotate (first l) (rest l) '()))) )
+
+(deftest test-rotate-right
+  (is (= (rotate-right '()) '()))
+  (is (= (rotate-right '(a)) '(a)))
+  (is (= (rotate-right '(a b)) '(b a)))
+  (is (= (rotate-right (rotate-right (rotate-right '(a b c)))) '(a b c)))
+  (is (= (rotate-right '(a b c d e)) '(e a b c d))))
+
