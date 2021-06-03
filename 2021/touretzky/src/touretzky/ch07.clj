@@ -234,3 +234,17 @@
   (is (not (every even? '(1 2 3 4 5))))
   (is (every string? '("Is" "this" "not" "pung?")))
   (is (not (every number? '(a b 2 3)))) )
+
+;;;
+;;;    7.30
+;;;
+(def english-french '((one un)
+                      (two deux)
+                      (three trois)
+                      (four quatre)
+                      (five cinq)))
+(def spanish '(uno dos tres quatro cinco))
+
+(defn trilingual []
+  (map #(concat %1 (list %2)) english-french spanish))
+

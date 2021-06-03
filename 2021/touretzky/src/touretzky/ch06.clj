@@ -477,7 +477,7 @@
   [l]
   (letfn [(swap [elt0 more result]
             (cond (empty? more) (cons (first result) (reverse (cons elt0 (rest result))))
-                  :else (swap elt0 (rest more) (cons (first more) result))))]
+                  :else (recur elt0 (rest more) (cons (first more) result))))]
     (if (empty? l) 
       l
       (let [[elt0 & more] l]
