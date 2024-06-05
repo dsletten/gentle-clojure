@@ -1,11 +1,11 @@
 ;;;;
 ;;;;
-;;;;   I think of Clojure as kind of the greatest hits of the last 20 or 30 years of computer science. It's like that mix tape from the Guardians of the Galaxy, only in software.
-;;;;   -- Russ Olsen
+;;;;   Clojure is great for apps where you need access to the bare meta.
+;;;;   -- Jay Fields
 ;;;;
-;;;;   Name:               family.clj
+;;;;   Name:               family_record.clj
 ;;;;
-;;;;   Started:            Tue Jul  6 16:42:53 2021
+;;;;   Started:            Sat Aug 28 12:08:57 2021
 ;;;;   Modifications:
 ;;;;
 ;;;;   Purpose:
@@ -21,82 +21,194 @@
 ;;;;
 ;;;;   Example:
 ;;;;
-;;;;   Notes: Watch out for #'clojure.core/parents and #'clojure.core/ancestors !!
+;;;;   Notes:
+;;;;
+;;;;   Person records hold references to other Person records rather than just names of people.
+;;;;   This causes a chicken and egg problem that requires the `children` keys to be populated
+;;;;   in a second pass after instantiating everyone. It also forces the `defamily` macro to
+;;;;   be ordered from ancestors -> descendants.
+;;;;   Whoops... No can do. This is actually impossible in FP. It is a simple matter in imperative
+;;;;   programming to create parent and child objects independently and then modify their slots to
+;;;;   refer to each other later. However, without destructive modification, both the parent(s) and
+;;;;   (potentially multiple) children would have to be created at the outset referring to each other.
+;;;;   But since one must be instantiated before the other this is impossible.
 ;;;;
 ;;;;
 
-(ns family
+(ns family-record
   (:use clojure.test
         clojure.set
         [clojure.pprint :only (cl-format)])
   (:import))
 
-(defn sym->key [sym]
-  (if (nil? sym)
-    nil
-    (keyword sym)))
+(defrecord Person [name father mother children])
 
-(defmacro defamily [name people]
-  "Define a family hierarchy from lists of (person father mother)."
-  `(def ~name '~(reduce (fn [family [person father mother]]
-                          (assoc family (keyword person) {:father father :mother mother}))
-;                         (assoc family (sym->key name) {:father (sym->key father) :mother (sym->key mother)}))
-                        {}
-                        people)))
+;; (defmethod name ((o null)) nil)
+;; (defmethod father ((o null)) nil)
+;; (defmethod mother ((o null)) nil)
+;; (defmethod children ((o null)) nil)
+  
+;; (defmethod print-object ((p person) stream)
+;;   (print-unreadable-object (p stream :type t)
+;;     (format stream "~A F: ~A M: ~A" (name p) (name (father p)) (name (mother p)))
+;;     (when (children p)
+;;       (format stream " Children: ~A" (mapcar #'name (children p)))) ))
 
-(defamily the-family ((colin nil nil)
-                      (deirdre nil nil)
-                      (arthur nil nil)
-                      (kate nil nil)
-                      (frank nil nil)
-                      (linda nil nil)
-                      (suzanne colin deirdre)
-                      (bruce arthur kate)
-                      (charles arthur kate)
-                      (david arthur kate)
-                      (ellen arthur kate)
-                      (george frank linda)
-                      (hillary frank linda)
-                      (andre nil nil)
-                      (tamara bruce suzanne)
-                      (vincent bruce suzanne)
-                      (wanda nil nil)
-                      (ivan george ellen)
-                      (julie george ellen)
-                      (marie george ellen)
-                      (nigel andre hillary)
-                      (frederick nil tamara)
-                      (zelda vincent wanda)
-                      (joshua ivan wanda)
-                      (quentin nil nil)
-                      (robert quentin julie)
-                      (olivia nigel marie)
-                      (peter nigel marie)
-                      (erica nil nil)
-                      (yvette robert zelda)
-                      (diane peter erica)))
-
-(defn father [person family]
-  (:father (family (keyword person))))
+;; (defn find-person [family name]
+;;   (family name))
 
 ;;;
-;;;    Works normally, but fails if `person` is nil.
+;;;    References in Person records simply as strings referring to other people:
+;;;    E.g., father -> "Arthur"
 ;;;    
+(defn add-child [parent child]
+(println parent child)
+  (if (nil? parent)
+    parent
+    (update parent :children conj child)))
+
+(defn set-children [family]
+  (reduce (fn [f [name p]]
+            (let [father (add-child (f (:father p)) (:name p))
+                  mother (add-child (f (:mother p)) (:name p))]
+              (-> f
+                  (assoc (:name father) father)
+                  (assoc (:name mother) mother))))
+          family
+          family))
+
+(defn update-family [family & members]
+  (loop [f family
+         m members]
+    (cond (empty? m) f
+          (nil? (first m)) (recur f (rest m))
+          :else (recur (assoc f (:name (first m)) (first m)) (rest m)))) )
+    
+(defn set-children [family]
+  (reduce-kv (fn [f name child]
+               (let [father (add-child (f (:father child)) (:name child))
+                     mother (add-child (f (:mother child)) (:name child))]
+                 (update-family f father mother)))
+             family
+             family))
+
+(defmacro defamily [name members]
+  (let [family (reduce (fn [family [name father-name mother-name]]
+                         (assoc family name (Person. name father-name mother-name [])))
+                       {}
+                       members)]
+    `(def ~name ~(set-children family))))
+
+(defn make-person
+  ([name father mother] (make-person name father mother []))
+  ([name father mother children] (Person. name father mother children)))
+
+(defmacro defamily [name members]
+  (let [family (apply update-family {} (map #(apply make-person %) members))]
+    `(def ~name ~(set-children family))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;;    This can't work!
+;;;
+;;;    References as Person records:
+;;;    E.g., father => #family_record.Person{:name "Arthur", :father nil, :mother nil, :children ["Bruce" "Ellen" "Charles" "David"]}
+;;;    
+;; (defn add-child [parent child]
+;;  (println parent child)
+;;   (if (nil? parent)
+;;     parent
+;;     (update parent :children conj child)))
+
+;; (defn update-family [family & members]
+;;   (loop [f family
+;;          m members]
+;;     (cond (empty? m) f
+;;           (nil? (first m)) (recur f (rest m))
+;;           :else (recur (assoc f (:name (first m)) (first m)) (rest m)))) )
+    
+;; (defn set-children [family]
+;;   (reduce-kv (fn [f name child]
+;;                (let [father (add-child (:father child) child)
+;;                      mother (add-child (:mother child) child)
+;;                      child (-> child (assoc :father father) (assoc :mother mother))]
+;;                  (update-family f father mother)))
+;;              family
+;;              family))
+
+;; (defmacro defamily [name members]
+;;   (let [family (reduce (fn [family [name father-name mother-name]]
+;;                          (assoc family name (Person. name (family father-name) (family mother-name) [])))
+;;                        {}
+;;                        members)]
+;;     `(def ~name ~(set-children family))))
+
+;; (defn make-person
+;;   ([name father mother] (make-person name father mother []))
+;;   ([name father mother children] (Person. name father mother children)))
+
+;; (defmacro defamily [name members]
+;;   (let [family (apply update-family {} (map #(apply make-person %) members))]
+;;     `(def ~name ~(set-children family))))
+
+;;;
+;;;    Must be ordered from ancestors -> descendants
+;;;    
+(defamily the-family (("Colin" nil nil)
+                      ("Deirdre" nil nil)
+                      ("Arthur" nil nil)
+                      ("Kate" nil nil)
+                      ("Frank" nil nil)
+                      ("Linda" nil nil)
+                      ("Suzanne" "Colin" "Deirdre")
+                      ("Bruce" "Arthur" "Kate")
+                      ("Charles" "Arthur" "Kate")
+                      ("David" "Arthur" "Kate")
+                      ("Ellen" "Arthur" "Kate")
+                      ("George" "Frank" "Linda")
+                      ("Hillary" "Frank" "Linda")
+                      ("Andre" nil nil)
+                      ("Tamara" "Bruce" "Suzanne")
+                      ("Vincent" "Bruce" "Suzanne")
+                      ("Wanda" nil nil)
+                      ("Ivan" "George" "Ellen")
+                      ("Julie" "George" "Ellen")
+                      ("Marie" "George" "Ellen")
+                      ("Nigel" "Andre" "Hillary")
+                      ("Frederick" nil "Tamara")
+                      ("Zelda" "Vincent" "Wanda")
+                      ("Joshua" "Ivan" "Wanda")
+                      ("Quentin" nil nil)
+                      ("Robert" "Quentin" "Julie")
+                      ("Olivia" "Nigel" "Marie")
+                      ("Peter" "Nigel" "Marie")
+                      ("Erica" nil nil)
+                      ("Yvette" "Robert" "Zelda")
+                      ("Diane" "Peter" "Erica")))
+
+
+
 ;; (defn father [person family]
-;;   (:father ((keyword person) family)))
+;;   (:father (family (keyword person))))
 
-(defn mother [person family]
-  (:mother (family (keyword person))))
+;; ;;;
+;; ;;;    Works normally, but fails if `person` is nil.
+;; ;;;    
+;; ;; (defn father [person family]
+;; ;;   (:father ((keyword person) family)))
 
-(defn father? [parent child family]
-  (and (not (nil? parent))
-       (not (nil? child))
-       (= (father child family) parent)))
+;; (defn mother [person family]
+;;   (:mother (family (keyword person))))
 
-(defn mother? [parent child family]
-  (and (not (nil? parent))
-       (not (nil? child))
-       (= (mother child family) parent)))
+;; (defn father? [parent child family]
+;;   (and (not (nil? parent))
+;;        (not (nil? child))
+;;        (= (father child family) parent)))
+
+;; (defn mother? [parent child family]
+;;   (and (not (nil? parent))
+;;        (not (nil? child))
+;;        (= (mother child family) parent)))
 
 (deftest test-father
   (is (nil? (father nil the-family)))
@@ -113,6 +225,8 @@
   (is (mother? (mother 'diane the-family) 'diane the-family))
   (is (mother? (mother 'suzanne the-family) 'suzanne the-family))
   (is (nil? (mother 'colin the-family))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; (defn parents [person family]
 ;;   (let [folks (remove nil? (list (father person family)
