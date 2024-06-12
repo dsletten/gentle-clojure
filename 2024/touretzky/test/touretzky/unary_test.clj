@@ -49,6 +49,38 @@
                         "Homie don't play with negative values."))
   (is (u/== u/zero (u/dec u/one)))
   (is (u/< (u/dec u/one) u/one)))
+
+(deftest test-<
+  (let [two   (u/+ u/one u/one)
+        three (u/+ two u/one)
+        four  (u/+ two two)
+        five  (u/+ two three)]
+    (is (not (u/< two three three four)))) )
+  
+(deftest test->=
+  (let [two   (u/+ u/one u/one)
+        three (u/+ two u/one)
+        four  (u/+ two two)
+        five  (u/+ two three)]
+    (is (u/>= u/one u/zero))
+    (is (u/>= u/one u/one))
+    (is (u/>= u/one u/one u/one))
+    (is (not (u/>= three two three)))
+    (is (u/>= three three two))
+    (is (u/>= five four three two u/one u/zero))
+    (is (u/>= five five four four three three two two))))
+  
+(deftest test-<=
+  (let [two   (u/+ u/one u/one)
+        three (u/+ two u/one)
+        four  (u/+ two two)
+        five  (u/+ two three)]
+    (is (u/<= u/zero u/one))
+    (is (u/<= u/one u/one))
+    (is (u/<= u/one u/one u/one))
+    (is (u/<= two three three))
+    (is (u/<= u/zero u/one two three four five))
+    (is (u/<= two two three three four four five five))))
   
 (deftest test-+
   (let [two   (u/+ u/one u/one)
@@ -183,7 +215,7 @@
   (prop/for-all [m (s/gen ::u/number)
                  n (s/gen ::u/number)]
     (is (or (u/< m n) (u/> m n) (u/== m n)))) )
-  
+
 (comment
 (let [two (+ one one) three (+ two one)] (> two three))
 (let [two (+ one one) three (+ two one)] (> three two))

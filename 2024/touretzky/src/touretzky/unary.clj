@@ -70,7 +70,7 @@
                :else (recur (dec m) (dec n))))
   ([m n & more] (if (== m n)
                   (if (next more)
-                    (recur m (first more) (next more))
+                    (recur n (first more) (next more))
                     (== n (first more)))
                   false)))
 
@@ -83,7 +83,7 @@
 ;(prn [m n more])
    (if (> m n)
      (if (next more)
-       (recur m (first more) (next more)) ; Some magic with `recur` and & more!
+       (recur n (first more) (next more)) ; Some magic with `recur` and & more!
        (> n (first more)))
      false)))
 
@@ -105,7 +105,7 @@
   ([m n & more]
    (if (< m n)
      (if (next more)
-       (recur m (first more) (next more))
+       (recur n (first more) (next more))
        (< n (first more)))
      false)))
 
@@ -113,13 +113,47 @@
 ;;   (or (apply > more)
 ;;       (apply == more)))
 
+;;;
+;;;    This is wrong!
+;;;    (>= 4 3 3 2) => (and (>= 4 3) (>= 3 3) (>= 3 2))
+;;;    (not (< 4 3 3 2)) => (not (and (< 4 3) (< 3 3) (< 3 2)))
+;;;                      => (or (not (< 4 3)) (not (< 3 3)) (not (< 3 2)))
+;;;                      => (or (>= 4 3) (>= 3 3) (>= 3 2))
+;;;                      
+;; (defn >=
+;;   ([m] true) ; Essential!
+;;   ([m & more] (not (apply < (cons m more)))) )
 (defn >=
-  ([m] true) ; Essential!
-  ([m & more] (not (apply > (cons m more)))) )
+  ([m] true)
+  ([m n] (cond (zero? m) (zero? n) ; These cases are a hybrid of == and >
+               (zero? n) true
+               :else (recur (dec m) (dec n))))
+  ([m n & more]
+   (if (>= m n)
+     (if (next more)
+       (recur n (first more) (next more))
+       (>= n (first more)))
+     false)))
 
-(defn <= [& more]
-  (or (apply < more)
-      (apply == more)))
+;;;
+;;;    Also wrong!
+;;;    (<= 2 3 3) but (< 2 3 3) => false and (== 2 3 3) => false
+;;;    
+;; (defn <= [& more]
+;;   (or (apply < more)
+;;       (apply == more)))
+
+(defn <=
+  ([m] true)
+  ([m n] (cond (zero? n) (zero? m) ; These cases are a hybrid of == and <
+               (zero? m) true
+               :else (recur (dec m) (dec n))))
+  ([m n & more]
+   (if (<= m n)
+     (if (next more)
+       (recur n (first more) (next more))
+       (<= n (first more)))
+     false)))
 
 (defn +
   ([] zero)
