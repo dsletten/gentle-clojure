@@ -24,13 +24,29 @@
 ;;;;   Notes:
 ;;;;
 ;;;;
+;;;;    lein test touretzky.unary-test                                                                                                
+;;;;    {:result true, :num-tests 200, :seed 1721422622725, :time-elapsed-ms 257, :test-var "commutative-addition"}                   
+;;;;    {:result true, :num-tests 200, :seed 1721422622987, :time-elapsed-ms 72, :test-var "strict-total-order"}                      
+;;;;    {:result true, :num-tests 200, :seed 1721422623059, :time-elapsed-ms 71550, :test-var "distributive-multiplication-addition"} 
+;;;;    {:result true, :num-tests 200, :seed 1721422694616, :time-elapsed-ms 18547, :test-var "commutative-multiplication"}           
+;;;;    {:result true, :num-tests 200, :seed 1721422713167, :time-elapsed-ms 791, :test-var "associative-addition"}                   
+;;;;    {:result true, :num-tests 200, :seed 1721422713959, :time-elapsed-ms 10954751, :test-var "associative-multiplication"}        
+;;;;
+;;;;    3 hours!!!
+;;;;    (floor 10954751 (* 60 1000))
+;;;;    182                         
+;;;;    34751                       
 
 (ns touretzky.unary-test
   (:require [clojure.spec.alpha :as s]
+;            [clojure.spec.test.alpha :as st]
             [clojure.test :refer [are deftest is]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.properties :as prop]
+            [orchestra.spec.test :as st]
             [touretzky.unary :as u]))
+
+(st/instrument)
 
 (deftest test-zero?
   (is (u/zero? u/zero))
@@ -49,6 +65,9 @@
                         "Homie don't play with negative values."))
   (is (u/== u/zero (u/dec u/one)))
   (is (u/< (u/dec u/one) u/one)))
+
+(deftest test-=
+  (is (u/== u/one u/one u/one u/one u/one u/one u/one u/one u/one u/one u/one u/one u/one)))
 
 (deftest test-<
   (let [two   (u/+ u/one u/one)
@@ -194,18 +213,18 @@
                  c (s/gen ::u/number)]
     (is (u/== (u/+ a (u/+ b c)) (u/+ (u/+ a b) c) (u/+ a b c)))) )
 
-(defspec commutative-multiplication 200
+(defspec commutative-multiplication 50
   (prop/for-all [m (s/gen ::u/number)
                  n (s/gen ::u/number)]
     (is (u/== (u/* m n) (u/* n m)))) )
 
-(defspec associative-multiplication 200
+(defspec associative-multiplication 5 ; 200
   (prop/for-all [a (s/gen ::u/number)
                  b (s/gen ::u/number)
                  c (s/gen ::u/number)]
     (is (u/== (u/* a (u/* b c)) (u/* (u/* a b) c) (u/* a b c)))) )
 
-(defspec distributive-multiplication-addition 200
+(defspec distributive-multiplication-addition 50
   (prop/for-all [a (s/gen ::u/number)
                  b (s/gen ::u/number)
                  c (s/gen ::u/number)]

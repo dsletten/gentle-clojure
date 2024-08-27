@@ -30,8 +30,11 @@
             [clojure.spec.gen.alpha :as g])
   (:refer-clojure :exclude [+ - * / > >= < <= inc dec == zero? even? odd? mod min max]))
 
-(s/def ::tally #{'X})
+(def ^:const tally 'X)
+(s/def ::tally #{tally})
 (s/def ::number (s/coll-of ::tally :into ()))
+;;    Need to define generator
+;(s/def ::number (s/coll-of ::tally :kind #(and (sequential? %) (not (vector? %)))))
 
 (def zero '())
 
@@ -48,12 +51,20 @@
   :ret  ::number)
 
 (defn inc [n]
-  (cons 'X n))
+  (cons tally n))
 
 (def one (inc zero))
 
+(s/fdef one?
+  :args (s/cat :n ::number)
+  :ret  boolean?)
+
 (defn one? [n]
   (= n one))
+
+(s/fdef dec
+  :args (s/cat :n ::number)
+  :ret  ::number)
 
 (defn dec [n]
   (if (zero? n)
@@ -63,16 +74,41 @@
 ;;;
 ;;;    Cribbed from clojure.core!
 ;;;    
-(defn ==
-  ([m] true)
-  ([m n] (cond (zero? m) (zero? n)
-               (zero? n) false
-               :else (recur (dec m) (dec n))))
-  ([m n & more] (if (== m n)
-                  (if (next more)
-                    (recur n (first more) (next more))
-                    (== n (first more)))
-                  false)))
+;; (defn ==
+;;   ([m] true)
+;;   ([m n] (cond (zero? m) (zero? n)
+;;                (zero? n) false
+;;                :else (recur (dec m) (dec n))))
+;;   ([m n & more] (if (== m n)
+;;                   (if (next more)
+;;                     (recur n (first more) (next more))
+;;                     (== n (first more)))
+;;                   false)))
+
+(defn- operator [f m ms]
+  (or (empty? ms)
+      (let [[n & ns] ms]
+        (and (f m n)
+             (recur f n ns)))) )
+
+(s/fdef ==
+  :args (s/cat :m ::number :ms (s/* ::number))
+  :ret  boolean?)
+
+(defn == [m & ms]
+  (letfn [(equals [m n]
+            (cond (zero? m) (zero? n)
+                  (zero? n) false
+                  :else (recur (dec m) (dec n))))]
+    (operator equals m ms)))
+
+(s/fdef >
+  :args (s/alt :unary    (s/cat :m ::number)
+               :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  boolean?)
 
 (defn >
   ([m] true)
@@ -80,7 +116,6 @@
                (zero? n) true
                :else (recur (dec m) (dec n))))
   ([m n & more]
-;(prn [m n more])
    (if (> m n)
      (if (next more)
        (recur n (first more) (next more)) ; Some magic with `recur` and & more!
@@ -97,6 +132,14 @@
 ;;        (< n (first more)))
 ;;      false)))
 
+(s/fdef <
+  :args (s/alt :unary    (s/cat :m ::number)
+               :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  boolean?)
+
 (defn <
   ([m] true)
   ([m n] (cond (zero? n) false
@@ -108,6 +151,14 @@
        (recur n (first more) (next more))
        (< n (first more)))
      false)))
+
+(s/fdef >=
+  :args (s/alt :unary    (s/cat :m ::number)
+               :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  boolean?)
 
 ;; (defn >= [& more]
 ;;   (or (apply > more)
@@ -135,6 +186,14 @@
        (>= n (first more)))
      false)))
 
+(s/fdef <=
+  :args (s/alt :unary    (s/cat :m ::number)
+               :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  boolean?)
+
 ;;;
 ;;;    Also wrong!
 ;;;    (<= 2 3 3) but (< 2 3 3) => false and (== 2 3 3) => false
@@ -155,6 +214,15 @@
        (<= n (first more)))
      false)))
 
+(s/fdef +
+  :args (s/alt :nullary  (s/cat)
+               :unary    (s/cat :m ::number)
+               :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  ::number)
+
 (defn +
   ([] zero)
   ([m] m)
@@ -162,6 +230,13 @@
            m
            (recur (inc m) (dec n))))
   ([m n & more] (reduce + (+ m n) more)))
+
+(s/fdef -
+  :args (s/alt :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  ::number)
 
 ;; (defn -
 ;;   ([m n] (cond (zero? n) m
@@ -175,6 +250,9 @@
 ;;                                                                 n " from " m)))) )))
 ;;   ([m n & more] (reduce - (- m n) more)))
 
+;;;
+;;;    Single arity is not meaningful here.
+;;;    
 (defn -
   ([m n]
     (try
@@ -186,6 +264,15 @@
       (catch IllegalArgumentException _
         (throw (IllegalArgumentException. (str "Cannot subtract " n " from " m)))) ))
   ([m n & more] (reduce - (- m n) more)))
+
+(s/fdef *
+  :args (s/alt :nullary  (s/cat)
+               :unary    (s/cat :m ::number)
+               :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  ::number)
 
 ;; (defn *
 ;;   ([] one)
@@ -208,6 +295,13 @@
          (recur (dec multiplier) (+ m result)))) ))
   ([m n & more] (reduce * (* m n) more)))
 
+(s/fdef /
+  :args (s/alt :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  ::number)
+
 ;; (defn /
 ;;   ([m n] (cond (zero? n)
 ;;                (throw (IllegalArgumentException. "Cannot divide by zero."))
@@ -228,29 +322,55 @@
              (recur (- dividend n) (inc result)))) ))
   ([m n & more] (reduce / (/ m n) more)))
 
+(s/fdef mod
+  :args (s/cat :m ::number :n ::number)
+  :ret  ::number)
+
 (defn mod
-  ([m n] (cond (zero? n)
-               (throw (IllegalArgumentException. "Cannot divide by zero."))
+  ([m n] (cond (zero? n) (throw (IllegalArgumentException. "Cannot divide by zero."))
                (< m n) m
-               :else
-               (recur (- m n) n))))
+               :else (recur (- m n) n))))
 
 (declare odd?)
+
+(s/fdef even?
+  :args (s/cat :n ::number)
+  :ret  boolean?)
 
 (defn even? [n]
   (cond (zero? n) true
         (one? n) false
         :else (odd? (dec n))))
 
+(s/fdef odd?
+  :args (s/cat :n ::number)
+  :ret  boolean?)
+
 (defn odd? [n]
   (cond (zero? n) false
         (one? n) true
         :else (even? (dec n))))
 
+(s/fdef min
+  :args (s/alt :unary    (s/cat :m ::number)
+               :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  ::number)
+
 (defn min
   ([m] m)
   ([m n] (if (< m n) m n))
   ([m n & more] (reduce min (min m n) more)))
+
+(s/fdef max
+  :args (s/alt :unary    (s/cat :m ::number)
+               :binary   (s/cat :m ::number :n ::number)
+               :variadic (s/cat :m    ::number
+                                :n    ::number
+                                :more (s/* ::number)))
+  :ret  ::number)
 
 (defn max
   ([m] m)
